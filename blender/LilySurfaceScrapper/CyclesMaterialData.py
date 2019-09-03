@@ -19,9 +19,9 @@ class CyclesMaterialData(MaterialData):
         'specular': 'Specular',
         'opacity': 'Alpha',
         'emission': 'Emission',
-        'height': '<custom>',
-        'ambientOcclusion': '<custom>', # https://github.com/KhronosGroup/glTF-Blender-IO/issues/123
-        'glossiness': '<custom>',
+        'height': '',
+        'ambientOcclusion': '', # https://github.com/KhronosGroup/glTF-Blender-IO/issues/123
+        'glossiness': '',
     }
 
     def loadImages(self):
@@ -62,9 +62,14 @@ class CyclesMaterialData(MaterialData):
                 texture_node.color_space = "COLOR" if map_name == "baseColor" else "NONE"
             if map_name == "opacity":
                 mat.blend_method = 'BLEND'
+
+        front = back if not front else front # In case just the backside texture was chosen
         
+        # Wire up all of the nodes traditionally
         if not back: # If there is no item in the back dictionary
-            (links.new(node.outputs["Color"], principled.inputs[__class__.input_tr[name]]) for name, node in front.items()) # Wire up all of the nodes traditionally
+            for name, node in front.items():
+                if __class__.input_tr.get(name):
+                    links.new(node.outputs["Color"], principled.inputs[__class__.input_tr[name]])
         else:
             geometry_node = nodes.new("ShaderNodeNewGeometry")
             def setup(name, front, back, mix):
@@ -72,7 +77,9 @@ class CyclesMaterialData(MaterialData):
                 links.new(front.outputs["Color"], mix.inputs[1])
                 links.new(back.outputs["Color"], mix.inputs[2])
                 links.new(mix.outputs["Color"], principled.inputs[__class__.input_tr[name]])
-            (setup(name, node, back[name], nodes.new(type="ShaderNodeMixRGB")) for name, node in front.items() if back.get(name))
+            for name, node in front.items():
+                if back.get(name) and __class__.input_tr.get(name):
+                    setup(name, node, back[name], nodes.new(type="ShaderNodeMixRGB"))
 
         autoAlignNodes(mat_output)
 
